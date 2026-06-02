@@ -5,6 +5,8 @@ A [Lit](https://lit.dev) web component that renders an interactive world map
 property — in the spirit of the speaker maps shown on [Noti.st](https://noti.st)
 profiles, but with no API key and no billing account required.
 
+![granite-worldmap rendering an interactive world map with Google-Maps-style pin markers on several cities](assets/screenshot.jpg)
+
 ## Install
 
 ```bash
