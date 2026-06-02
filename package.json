@@ -1,0 +1,51 @@
+{
+  "name": "@granite-elements/granite-worldmap",
+  "description": "Webcomponent granite-worldmap: a world map with markers on a set of locations, following open-wc recommendations",
+  "license": "MIT",
+  "author": "Horacio Gonzalez <horacio.gonzalez@gmail.com>",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "module": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./granite-worldmap.js": "./granite-worldmap.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LostInBrittany/granite-worldmap.git"
+  },
+  "scripts": {
+    "analyze": "cem analyze --litelement",
+    "start": "web-dev-server",
+    "lint": "eslint --ext .js,.html . --ignore-path .gitignore && prettier \"**/*.js\" --check --ignore-path .gitignore",
+    "format": "eslint --ext .js,.html . --fix --ignore-path .gitignore && prettier \"**/*.js\" --write --ignore-path .gitignore",
+    "test": "web-test-runner --coverage",
+    "test:watch": "web-test-runner --watch"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@custom-elements-manifest/analyzer": "^0.10.3",
+    "@open-wc/eslint-config": "^12.0.3",
+    "@open-wc/testing": "^4.0.0",
+    "@web/dev-server": "^0.4.6",
+    "@web/test-runner": "^0.18.2",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.2"
+  },
+  "customElements": "custom-elements.json",
+  "eslintConfig": {
+    "extends": [
+      "@open-wc",
+      "prettier"
+    ]
+  },
+  "prettier": {
+    "singleQuote": true,
+    "arrowParens": "avoid"
+  }
+}
