@@ -9,15 +9,17 @@ profiles, but with no API key and no billing account required.
 
 ## Install
 
+Published on npm as [`@granite-elements/granite-worldmap`](https://www.npmjs.com/package/@granite-elements/granite-worldmap):
+
 ```bash
-npm install granite-worldmap
+npm install @granite-elements/granite-worldmap
 ```
 
 ## Usage
 
 ```html
 <script type="module">
-  import 'granite-worldmap/granite-worldmap.js';
+  import '@granite-elements/granite-worldmap/granite-worldmap.js';
 </script>
 
 <granite-worldmap id="map"></granite-worldmap>
