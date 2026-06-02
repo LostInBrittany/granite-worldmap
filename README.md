@@ -81,6 +81,15 @@ The component is themeable through CSS custom properties:
 | `--granite-worldmap-marker-color`        | `#ea4335` | Pin fill                  |
 | `--granite-worldmap-marker-border-color` | `#b31412` | Pin outline               |
 | `--granite-worldmap-marker-hole-color`   | `#7a0e08` | Pin center hole           |
+| `--granite-worldmap-marker-opacity`      | `0.7`     | Pin opacity (see below)   |
+
+### Marker density
+
+Markers are slightly translucent by default (`--granite-worldmap-marker-opacity`,
+`0.7`). Because each marker is a separate stacked element, several markers on the
+same location accumulate and render darker and bolder the more there are — a
+quick visual cue for "how much happened here". Set the opacity to `1` to disable
+the effect.
 
 ## A note on Leaflet + Shadow DOM
 

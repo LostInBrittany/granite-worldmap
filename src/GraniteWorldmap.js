@@ -64,12 +64,15 @@ export class GraniteWorldmap extends LitElement {
       border: none;
     }
 
-    /* The pin, rendered through L.divIcon and themeable via CSS vars. */
+    /* The pin, rendered through L.divIcon and themeable via CSS vars.
+       The default opacity is below 1 on purpose: markers stacked on the same
+       location accumulate and render darker/bolder the more there are. */
     .granite-worldmap-marker {
       display: block;
       width: 100%;
       height: 100%;
       cursor: pointer;
+      opacity: var(--granite-worldmap-marker-opacity, 0.7);
       transform-origin: bottom center;
       transition: transform 0.1s ease-out;
       filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
