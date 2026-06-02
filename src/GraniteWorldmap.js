@@ -16,21 +16,94 @@ const MARKER_HEIGHT = 39;
  * SVG of a Google-Maps-style teardrop pin. The shape is anchored at its bottom
  * tip and its colors are driven by CSS custom properties (see `static styles`),
  * so it stays themeable from outside the shadow root.
+ *
+ * `intensityFactor` is the normalized density (0 at intensity 1 … 1 at intensity
+ * 5); it is passed as an internal CSS variable that scales the pin opacity.
+ *
+ * @param {number} intensityFactor - 0..1 density factor (numeric, injection-safe)
  */
-const PIN_SVG = `
-  <svg class="granite-worldmap-marker" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+const pinSvg = intensityFactor => `
+  <svg class="granite-worldmap-marker" style="--_granite-worldmap-intensity:${intensityFactor}" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path class="granite-worldmap-pin" d="M12 0C5.373 0 0 5.373 0 12c0 8.4 12 24 12 24s12-15.6 12-24C24 5.373 18.627 0 12 0z"/>
     <circle class="granite-worldmap-pin-hole" cx="12" cy="12" r="4.5"/>
   </svg>
 `;
 
+/** HTML-escape a value coming from user data before interpolating it. */
+const escapeHtml = value =>
+  String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+/** Clamp `intensity` to an integer in 1..5; non-numeric values default to 1. */
+const clampIntensity = value => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(5, Math.max(1, Math.round(n)));
+};
+
+/**
+ * Build the popup HTML for a location. With a non-empty `entries` array it
+ * renders a header (`title`/`name`) plus a list of linked rows; otherwise it
+ * falls back to the single-line `name` (optionally linked by `url`). Every
+ * interpolated string is HTML-escaped.
+ */
+const popupHtml = location => {
+  const entries = Array.isArray(location.entries) ? location.entries : [];
+
+  if (entries.length) {
+    const header = location.title || location.name;
+    const headerHtml = header
+      ? `<div class="granite-worldmap-popup-header">${escapeHtml(header)}</div>`
+      : '';
+    const items = entries
+      .map(entry => {
+        const label = escapeHtml(entry.label);
+        const labelHtml = entry.url
+          ? `<a href="${escapeHtml(entry.url)}">${label}</a>`
+          : label;
+        const metaHtml =
+          entry.meta == null || entry.meta === ''
+            ? ''
+            : `<span class="granite-worldmap-popup-meta">${escapeHtml(
+                entry.meta,
+              )}</span>`;
+        return `<li>${labelHtml}${metaHtml}</li>`;
+      })
+      .join('');
+    return `${headerHtml}<ul class="granite-worldmap-popup-list">${items}</ul>`;
+  }
+
+  // Single-line fallback (unchanged): `name`, optionally linked by `url`.
+  const name = escapeHtml(location.name);
+  if (location.url) {
+    return `<a href="${escapeHtml(location.url)}">${name}</a>`;
+  }
+  return name;
+};
+
 /**
  * `<granite-worldmap>` renders an interactive Leaflet world map with a marker
  * for every entry of its `locations` property.
  *
- * Each location is an object: `{ lat, lng, name?, url? }`. Only `lat` and `lng`
- * are required; `name` is shown in a popup and `url` (when present) is exposed
- * in the popup as a link.
+ * Each location is an object. Only `lat` and `lng` are required; every other
+ * field is optional and backward-compatible:
+ *
+ * ```js
+ * {
+ *   lat: Number,        // required
+ *   lng: Number,        // required
+ *   name: String,       // single-line popup text, linked by `url` when present
+ *   url: String,        // makes `name` a link in the popup
+ *   title: String,      // hover tooltip; falls back to `name`
+ *   entries: [          // popup list, one row per event at this location
+ *     { label: String, meta: String, url?: String }
+ *   ],
+ *   intensity: Number,  // 1 (default) … 5, clamped; scales marker density
+ * }
+ * ```
  *
  * Clicking a marker dispatches a `granite-worldmap-marker-click` CustomEvent
  * whose `detail` is the matching location object.
@@ -40,8 +113,12 @@ const PIN_SVG = `
  * @cssprop --granite-worldmap-height - Map height (default 400px)
  * @cssprop --granite-worldmap-bg - Background behind the tiles (default #aad3df)
  * @cssprop --granite-worldmap-border-radius - Map border radius (default 0)
- * @cssprop --granite-worldmap-marker-color - Marker dot fill (default #e4002b)
- * @cssprop --granite-worldmap-marker-border-color - Marker dot border (default #fff)
+ * @cssprop --granite-worldmap-marker-color - Pin fill (default #ea4335)
+ * @cssprop --granite-worldmap-marker-border-color - Pin outline (default #b31412)
+ * @cssprop --granite-worldmap-marker-hole-color - Pin center hole (default #7a0e08)
+ * @cssprop --granite-worldmap-marker-opacity - Pin opacity at intensity 1 (default 0.7)
+ * @cssprop --granite-worldmap-marker-intensity-max-opacity - Pin opacity at intensity 5 (default 1)
+ * @cssprop --granite-worldmap-popup-meta-color - Popup meta/year text color (default #888)
  */
 export class GraniteWorldmap extends LitElement {
   static styles = css`
@@ -65,14 +142,28 @@ export class GraniteWorldmap extends LitElement {
     }
 
     /* The pin, rendered through L.divIcon and themeable via CSS vars.
-       The default opacity is below 1 on purpose: markers stacked on the same
-       location accumulate and render darker/bolder the more there are. */
+       Opacity interpolates from the floor (--granite-worldmap-marker-opacity,
+       used at intensity 1) up to the ceiling
+       (--granite-worldmap-marker-intensity-max-opacity, used at intensity 5),
+       driven by the per-marker density factor --_granite-worldmap-intensity
+       (0..1) set inline in the pin SVG. At intensity 1 the factor is 0, so the
+       opacity equals the floor — identical to pre-intensity behavior. */
     .granite-worldmap-marker {
       display: block;
       width: 100%;
       height: 100%;
       cursor: pointer;
-      opacity: var(--granite-worldmap-marker-opacity, 0.7);
+      --_granite-worldmap-intensity: 0;
+      opacity: calc(
+        var(--granite-worldmap-marker-opacity, 0.7) +
+          (
+            var(--granite-worldmap-marker-intensity-max-opacity, 1) - var(
+                --granite-worldmap-marker-opacity,
+                0.7
+              )
+          ) *
+          var(--_granite-worldmap-intensity)
+      );
       transform-origin: bottom center;
       transition: transform 0.1s ease-out;
       filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
@@ -91,6 +182,27 @@ export class GraniteWorldmap extends LitElement {
 
     .granite-worldmap-pin-hole {
       fill: var(--granite-worldmap-marker-hole-color, #7a0e08);
+    }
+
+    /* Multi-entry popup list (rendered when a location has entries). */
+    .granite-worldmap-popup-header {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .granite-worldmap-popup-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .granite-worldmap-popup-list li + li {
+      margin-top: 2px;
+    }
+
+    .granite-worldmap-popup-meta {
+      margin-left: 0.4em;
+      color: var(--granite-worldmap-popup-meta-color, #888);
     }
   `;
 
@@ -174,9 +286,12 @@ export class GraniteWorldmap extends LitElement {
       const lng = Number(location.lng);
       if (Number.isNaN(lat) || Number.isNaN(lng)) return;
 
+      // intensity 1..5 → density factor 0..1 (intensity 1 keeps current opacity).
+      const intensityFactor = (clampIntensity(location.intensity) - 1) / 4;
+
       const icon = L.divIcon({
         className: 'granite-worldmap-icon',
-        html: PIN_SVG,
+        html: pinSvg(intensityFactor),
         iconSize: [MARKER_WIDTH, MARKER_HEIGHT],
         // Anchor at the bottom tip of the pin so it points at the coordinate.
         iconAnchor: [MARKER_WIDTH / 2, MARKER_HEIGHT],
@@ -185,12 +300,16 @@ export class GraniteWorldmap extends LitElement {
 
       const marker = L.marker([lat, lng], {
         icon,
-        title: location.name || '',
+        // Hover tooltip is decoupled from the popup: prefer `title`, fall
+        // back to `name`.
+        title: location.title ?? location.name ?? '',
         keyboard: true,
       });
 
-      if (location.name) {
-        marker.bindPopup(this._popupHtml(location));
+      const hasEntries =
+        Array.isArray(location.entries) && location.entries.length > 0;
+      if (hasEntries || location.name) {
+        marker.bindPopup(popupHtml(location));
       }
 
       marker.on('click', () => {
@@ -210,22 +329,5 @@ export class GraniteWorldmap extends LitElement {
     if (this.fitMarkers && bounds.length) {
       this._map.fitBounds(bounds, { padding: [30, 30], maxZoom: 6 });
     }
-  }
-
-  _popupHtml(location) {
-    const name = this._escape(location.name);
-    if (location.url) {
-      const url = this._escape(location.url);
-      return `<a href="${url}">${name}</a>`;
-    }
-    return name;
-  }
-
-  _escape(value) {
-    return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
   }
 }

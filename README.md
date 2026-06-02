@@ -33,18 +33,47 @@ npm install @granite-elements/granite-worldmap
 </script>
 ```
 
-`locations` is an array of objects. Only `lat` and `lng` are required:
+`locations` is an array of objects. Only `lat` and `lng` are required; every
+other field is optional and backward-compatible:
 
-| Field  | Type   | Required | Description                                   |
-| ------ | ------ | -------- | --------------------------------------------- |
-| `lat`  | Number | yes      | Latitude                                      |
-| `lng`  | Number | yes      | Longitude                                     |
-| `name` | String | no       | Shown in the marker popup and as hover title  |
-| `url`  | String | no       | When present, shown as a link inside the popup |
+| Field       | Type   | Required | Description                                                                 |
+| ----------- | ------ | -------- | --------------------------------------------------------------------------- |
+| `lat`       | Number | yes      | Latitude                                                                    |
+| `lng`       | Number | yes      | Longitude                                                                   |
+| `name`      | String | no       | Single-line popup text; also the hover tooltip if `title` is absent         |
+| `url`       | String | no       | When present, makes `name` a link inside the popup                          |
+| `title`     | String | no       | Hover tooltip text (e.g. `"City, Country"`); falls back to `name`           |
+| `entries`   | Array  | no       | Rows rendered as a list in the popup — see below                            |
+| `intensity` | Number | no       | `1` (default) … `5`, clamped; scales marker density/opacity                 |
 
 > Coordinates are required because Leaflet positions markers by lat/lng. If you
 > only have place names, geocode them first (e.g. via OpenStreetMap's Nominatim)
 > and feed the resulting coordinates in.
+
+### Aggregating several events at one location
+
+When a city hosts several events, give the marker a `title` (shown on hover), an
+`entries` list (shown in the popup on click), and an `intensity` (the more events,
+the bolder the marker):
+
+```js
+{
+  lat: 41.3874,
+  lng: 2.1686,
+  title: 'Barcelona, Spain',     // hover tooltip
+  intensity: 3,                   // 3 events → denser marker (clamped 1–5)
+  entries: [                      // popup list, newest first
+    { label: 'DevBCN',  meta: '2025', url: '/talks/2025/devbcn/' },
+    { label: 'DevBCN',  meta: '2024', url: '/talks/2024/devbcn/' },
+    { label: 'BCN JUG', meta: '2024', url: '/talks/2024/bcn-jug/' },
+  ],
+}
+```
+
+Each `entries` row is `{ label, meta, url? }`: `label` is the event name (linked
+by `url` when present) and `meta` is muted secondary text such as the year. The
+popup shows `title` (or `name`) as a header above the list. All interpolated
+strings are HTML-escaped.
 
 ## Properties / attributes
 
@@ -73,23 +102,36 @@ map.addEventListener('granite-worldmap-marker-click', e => {
 
 The component is themeable through CSS custom properties:
 
-| Custom property                          | Default   | Description                |
-| ---------------------------------------- | --------- | ------------------------- |
-| `--granite-worldmap-height`              | `400px`   | Map height                |
-| `--granite-worldmap-bg`                  | `#aad3df` | Background behind tiles   |
-| `--granite-worldmap-border-radius`       | `0`       | Map border radius         |
-| `--granite-worldmap-marker-color`        | `#ea4335` | Pin fill                  |
-| `--granite-worldmap-marker-border-color` | `#b31412` | Pin outline               |
-| `--granite-worldmap-marker-hole-color`   | `#7a0e08` | Pin center hole           |
-| `--granite-worldmap-marker-opacity`      | `0.7`     | Pin opacity (see below)   |
+| Custom property                                 | Default   | Description                              |
+| ----------------------------------------------- | --------- | ---------------------------------------- |
+| `--granite-worldmap-height`                     | `400px`   | Map height                               |
+| `--granite-worldmap-bg`                         | `#aad3df` | Background behind tiles                  |
+| `--granite-worldmap-border-radius`              | `0`       | Map border radius                        |
+| `--granite-worldmap-marker-color`               | `#ea4335` | Pin fill                                 |
+| `--granite-worldmap-marker-border-color`        | `#b31412` | Pin outline                              |
+| `--granite-worldmap-marker-hole-color`          | `#7a0e08` | Pin center hole                          |
+| `--granite-worldmap-marker-opacity`             | `0.7`     | Pin opacity at `intensity` 1 (the floor) |
+| `--granite-worldmap-marker-intensity-max-opacity` | `1`     | Pin opacity at `intensity` 5 (the ceiling) |
+| `--granite-worldmap-popup-meta-color`           | `#888`    | Popup meta/year text color               |
 
 ### Marker density
 
-Markers are slightly translucent by default (`--granite-worldmap-marker-opacity`,
-`0.7`). Because each marker is a separate stacked element, several markers on the
-same location accumulate and render darker and bolder the more there are — a
-quick visual cue for "how much happened here". Set the opacity to `1` to disable
-the effect.
+Each location's `intensity` (1–5) scales the marker's opacity from the floor
+(`--granite-worldmap-marker-opacity`, `0.7`, used at intensity 1) up to the
+ceiling (`--granite-worldmap-marker-intensity-max-opacity`, `1`, used at
+intensity 5):
+
+```
+opacity = floor + (ceiling - floor) * (clamp(intensity, 1, 5) - 1) / 4
+// floor 0.7, ceiling 1 → 1:0.70  2:0.775  3:0.85  4:0.925  5:1.0
+```
+
+So a city with many events reads bolder than a one-off location, with a single
+marker per city. Lower the floor (or raise nothing) for stronger contrast.
+
+Markers are also slightly translucent by default, so if you instead render
+multiple markers at the same coordinate they still accumulate and darken where
+they overlap. Set the opacity to `1` to disable both effects.
 
 ## A note on Leaflet + Shadow DOM
 
