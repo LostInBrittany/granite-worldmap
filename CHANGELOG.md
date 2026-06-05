@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-06-05
+
+### Added
+
+- **Scrollable popups**: when a location's `entries` list is longer than
+  `popupMaxEntries` rows (new property, default `10`, `popup-max-entries`
+  attribute, `0` disables), the list is capped to roughly that many rows and
+  scrolls, keeping the `title`/`name` header pinned above it. A persistent
+  scrollbar is shown (rather than a macOS overlay one that hides until you
+  scroll) so a long list reads as having more rows.
+- New CSS custom properties: `--granite-worldmap-popup-row-height` (default
+  `1.6em`, the per-row height used to size the scroll area) and
+  `--granite-worldmap-popup-scrollbar-color` (default `rgba(0,0,0,0.35)`).
+
 ## [1.2.0] - 2026-06-02
 
 ### Added
@@ -49,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `granite-worldmap-marker-click` event, marker popups, and fit-to-markers
   viewport.
 
+[1.3.0]: https://github.com/LostInBrittany/granite-worldmap/releases/tag/v1.3.0
 [1.2.0]: https://github.com/LostInBrittany/granite-worldmap/releases/tag/v1.2.0
 [1.1.0]: https://github.com/LostInBrittany/granite-worldmap/releases/tag/v1.1.0
 [1.0.0]: https://github.com/LostInBrittany/granite-worldmap/releases/tag/v1.0.0

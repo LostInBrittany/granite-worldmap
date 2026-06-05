@@ -75,6 +75,12 @@ by `url` when present) and `meta` is muted secondary text such as the year. The
 popup shows `title` (or `name`) as a header above the list. All interpolated
 strings are HTML-escaped.
 
+When a location has more than `popupMaxEntries` rows (default `10`), the list is
+capped to roughly that many rows and becomes scrollable — the header stays pinned
+above it and a scrollbar signals the extra rows. Tune the threshold with the
+`popup-max-entries` attribute (set it to `0` to never scroll), and the visible
+height per row with `--granite-worldmap-popup-row-height`.
+
 ## Properties / attributes
 
 | Property         | Attribute          | Type    | Default                          | Description                                          |
@@ -85,6 +91,7 @@ strings are HTML-escaped.
 | `tileUrl`        | `tile-url`         | String  | OpenStreetMap tiles              | Tile layer URL template                              |
 | `attribution`    | `attribution`      | String  | OpenStreetMap attribution        | Tile attribution HTML                                |
 | `fitMarkers`     | `fit-markers`      | Boolean | `true`                           | Fit the viewport to the markers' bounds              |
+| `popupMaxEntries`| `popup-max-entries`| Number  | `10`                             | Row count above which a popup's `entries` list scrolls (`0` disables) |
 | `leafletCssUrl`  | `leaflet-css-url`  | String  | unpkg Leaflet CSS                | Stylesheet injected into the shadow root (see below) |
 
 ## Events
@@ -113,6 +120,8 @@ The component is themeable through CSS custom properties:
 | `--granite-worldmap-marker-opacity`             | `0.7`     | Pin opacity at `intensity` 1 (the floor) |
 | `--granite-worldmap-marker-intensity-max-opacity` | `1`     | Pin opacity at `intensity` 5 (the ceiling) |
 | `--granite-worldmap-popup-meta-color`           | `#888`    | Popup meta/year text color               |
+| `--granite-worldmap-popup-row-height`           | `1.6em`   | Per-row height used to size the scrollable list |
+| `--granite-worldmap-popup-scrollbar-color`      | `rgba(0,0,0,0.35)` | Scrollbar thumb color of a scrollable popup list |
 
 ### Marker density
 

@@ -49,8 +49,15 @@ const clampIntensity = value => {
  * renders a header (`title`/`name`) plus a list of linked rows; otherwise it
  * falls back to the single-line `name` (optionally linked by `url`). Every
  * interpolated string is HTML-escaped.
+ *
+ * When the list is longer than `maxEntries` rows it is capped to roughly that
+ * many rows and becomes scrollable (the header stays pinned above it). Pass
+ * `0` to never cap it.
+ *
+ * @param {object} location - the location object
+ * @param {number} maxEntries - row threshold above which the list scrolls
  */
-const popupHtml = location => {
+const popupHtml = (location, maxEntries) => {
   const entries = Array.isArray(location.entries) ? location.entries : [];
 
   if (entries.length) {
@@ -73,7 +80,15 @@ const popupHtml = location => {
         return `<li>${labelHtml}${metaHtml}</li>`;
       })
       .join('');
-    return `${headerHtml}<ul class="granite-worldmap-popup-list">${items}</ul>`;
+    // Beyond the threshold, cap the list to ~maxEntries rows and let it scroll.
+    const scrollable = maxEntries > 0 && entries.length > maxEntries;
+    const listClass = scrollable
+      ? 'granite-worldmap-popup-list granite-worldmap-popup-list--scroll'
+      : 'granite-worldmap-popup-list';
+    const listStyle = scrollable
+      ? ` style="--_granite-worldmap-popup-rows:${maxEntries}"`
+      : '';
+    return `${headerHtml}<ul class="${listClass}"${listStyle}>${items}</ul>`;
   }
 
   // Single-line fallback (unchanged): `name`, optionally linked by `url`.
@@ -119,6 +134,8 @@ const popupHtml = location => {
  * @cssprop --granite-worldmap-marker-opacity - Pin opacity at intensity 1 (default 0.7)
  * @cssprop --granite-worldmap-marker-intensity-max-opacity - Pin opacity at intensity 5 (default 1)
  * @cssprop --granite-worldmap-popup-meta-color - Popup meta/year text color (default #888)
+ * @cssprop --granite-worldmap-popup-row-height - Per-row height used to size the scrollable list (default 1.6em)
+ * @cssprop --granite-worldmap-popup-scrollbar-color - Scrollbar thumb color of a scrollable popup list (default rgba(0,0,0,0.35))
  */
 export class GraniteWorldmap extends LitElement {
   static styles = css`
@@ -196,6 +213,50 @@ export class GraniteWorldmap extends LitElement {
       padding: 0;
     }
 
+    /* Long lists are capped to ~--_granite-worldmap-popup-rows rows (set inline
+       from the popup-max-entries property) and scroll, keeping the header
+       pinned above. --granite-worldmap-popup-row-height is the per-row estimate
+       used to derive that height. */
+    .granite-worldmap-popup-list--scroll {
+      max-height: calc(
+        var(--_granite-worldmap-popup-rows, 10) *
+          var(--granite-worldmap-popup-row-height, 1.6em)
+      );
+      overflow-y: scroll;
+      /* Keep the scrollbar clear of the row text. */
+      padding-right: 4px;
+    }
+
+    /* WebKit/Blink: force a persistent classic scrollbar. Without this, macOS
+       overlay scrollbars stay hidden until you scroll, so a long list looks
+       complete. The standard scrollbar-width/scrollbar-color properties are
+       deliberately NOT set here: Chrome would honor them and then ignore these
+       ::-webkit-scrollbar rules, reverting to a hidden overlay bar. They are
+       applied for Firefox instead, in the @supports block below. */
+    .granite-worldmap-popup-list--scroll::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .granite-worldmap-popup-list--scroll::-webkit-scrollbar-thumb {
+      background: var(
+        --granite-worldmap-popup-scrollbar-color,
+        rgba(0, 0, 0, 0.35)
+      );
+      border-radius: 4px;
+    }
+
+    /* Firefox (no ::-webkit-scrollbar support): a thin, always-present bar. */
+    @supports not selector(::-webkit-scrollbar) {
+      .granite-worldmap-popup-list--scroll {
+        scrollbar-width: thin;
+        scrollbar-color: var(
+            --granite-worldmap-popup-scrollbar-color,
+            rgba(0, 0, 0, 0.35)
+          )
+          transparent;
+      }
+    }
+
     .granite-worldmap-popup-list li + li {
       margin-top: 2px;
     }
@@ -221,6 +282,8 @@ export class GraniteWorldmap extends LitElement {
     leafletCssUrl: { type: String, attribute: 'leaflet-css-url' },
     /** When true, the viewport is fitted to the markers' bounding box. */
     fitMarkers: { type: Boolean, attribute: 'fit-markers' },
+    /** Row count above which a popup's `entries` list scrolls (0 disables). */
+    popupMaxEntries: { type: Number, attribute: 'popup-max-entries' },
   };
 
   constructor() {
@@ -233,6 +296,7 @@ export class GraniteWorldmap extends LitElement {
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
     this.leafletCssUrl = DEFAULT_LEAFLET_CSS;
     this.fitMarkers = true;
+    this.popupMaxEntries = 10;
     this._map = null;
     this._markerLayer = null;
   }
@@ -309,7 +373,7 @@ export class GraniteWorldmap extends LitElement {
       const hasEntries =
         Array.isArray(location.entries) && location.entries.length > 0;
       if (hasEntries || location.name) {
-        marker.bindPopup(popupHtml(location));
+        marker.bindPopup(popupHtml(location, this.popupMaxEntries));
       }
 
       marker.on('click', () => {
